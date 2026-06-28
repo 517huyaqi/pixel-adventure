@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>像素冒险 - Pixel Adventure</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    background: #1a1a2e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Courier New', monospace;
+    color: #fff;
+  }
+  #gameContainer {
+    position: relative;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    margin: 0 auto;
+  }
+  canvas {
+    display: block;
+    border: 2px solid #4a4a6a;
+    image-rendering: pixelated;
+    background: #87CEEB;
+  }
+  #hud {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    right: 8px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 18px;
+    font-weight: bold;
+    text-shadow: 2px 2px 0 #000;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #hud span { color: #fff; }
+  #overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.75);
+    z-index: 20;
+    text-align: center;
+    cursor: pointer;
+  }
+  #overlay h1 {
+    font-size: 42px;
+    margin-bottom: 10px;
+    text-shadow: 3px 3px 0 #000;
+    animation: blink 1s steps(2) infinite;
+  }
+  #overlay p {
+    font-size: 16px;
+    margin: 4px 0;
+    color: #ccc;
+  }
+  #overlay .controls {
+    margin-top: 16px;
+    font-size: 14px;
+    color: #aaa;
+    line-height: 1.8;
+  }
+  .desktop-only { display: block; }
+  .mobile-only { display: none; }
+  @keyframes blink { 50% { opacity: 0.5; } }
+  .hidden { display: none !important; }
+  kbd {
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 3px;
+    padding: 2px 8px;
+    font-family: monospace;
+    color: #fff;
+  }
+
+  /* ===== 触摸控制按钮 ===== */
+  #touchControls {
+    position: fixed;
+    bottom: 0; left: 0;
+    width: 100%;
+    height: 180px;
+    pointer-events: none;
+    z-index: 15;
+    display: none;
+  }
+  .touch-btn {
+    position: absolute;
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.12);
+    border: 3px solid rgba(255,255,255,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    color: rgba(255,255,255,0.6);
+    pointer-events: auto;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.08s, transform 0.08s;
+  }
+  .touch-btn:active {
+    background: rgba(255,255,255,0.3);
+    border-color: rgba(255,255,255,0.55);
+    transform: scale(0.92);
+  }
+  #btnLeft  { bottom: 30px; left: 24px; }
+  #btnRight { bottom: 30px; left: 114px; }
+  #btnJump {
+    bottom: 30px; right: 24px;
+    width: 92px; height: 92px;
+    font-size: 22px; font-weight: bold;
+    background: rgba(224,64,64,0.2);
+    border-color: rgba(224,64,64,0.35);
+    color: rgba(255,200,200,0.8);
+  }
+  #btnJump:active {
+    background: rgba(224,64,64,0.45);
+    border-color: rgba(224,64,64,0.7);
+  }
+
+  /* ===== 分享按钮 ===== */
+  #shareBtn {
+    position: fixed;
+    top: 10px; right: 10px;
+    z-index: 25;
+    background: rgba(34,170,34,0.85);
+    color: #fff; border: none;
+    padding: 8px 18px;
+    border-radius: 22px;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    cursor: pointer;
+    display: none;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ===== Toast 提示 ===== */
+  #toast {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.88);
+    color: #fff;
+    padding: 14px 28px;
+    border-radius: 10px;
+    font-size: 16px;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    text-align: center;
+    max-width: 90%;
+    line-height: 1.6;
+  }
+  #toast.show { opacity: 1; }
+
+  /* ===== 横屏提示 ===== */
+  #rotatePrompt {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #1a1a2e;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    text-align: center;
+    color: #fff;
+  }
+  #rotatePrompt .icon {
+    font-size: 64px;
+    margin-bottom: 24px;
+    animation: rot 2s ease-in-out infinite;
+  }
+  @keyframes rot {
+    0%, 40% { transform: rotate(0deg); }
+    60%, 100% { transform: rotate(-90deg); }
+  }
+
+  /* ===== 小屏适配 ===== */
+  @media (max-width: 850px) {
+    #overlay h1 { font-size: 30px; }
+    #overlay p  { font-size: 13px; }
+    #overlay .controls { font-size: 12px; }
+    #hud { font-size: 14px; }
+  }
+  @media (hover: none) and (pointer: coarse) {
+    .desktop-only { display: none; }
+    .mobile-only { display: block; }
+  }
+</style>
+</head>
+<body>
+
+<div id="gameContainer">
+  <canvas id="game" width="800" height="600"></canvas>
+  <div id="hud">
+    <span>🪙 <span id="coinCount">0</span></span>
+    <span>❤️ <span id="lives">3</span></span>
+    <span>🏆 <span id="score">0</span></span>
+  </div>
+  <div id="overlay">
+    <h1 id="overlayTitle">像素冒险</h1>
+    <p id="overlaySub">移动 + 跳跃，踩敌人头顶消灭它们！</p>
+    <div class="controls">
+      <p class="desktop-only"><kbd>← →</kbd> 或 <kbd>A D</kbd> 移动　<kbd>↑</kbd>/<kbd>W</kbd>/<kbd>Space</kbd> 跳跃</p>
+      <p class="mobile-only">👈 左下按钮控制移动　👉 右下按钮跳跃</p>
+      <p>收集金币、消灭敌人、到达终点旗杆！</p>
+    </div>
+    <p style="margin-top:20px;font-size:20px;color:#ffd700;">点击屏幕开始</p>
+  </div>
+</div>
+
+<div id="touchControls">
+  <div class="touch-btn" id="btnLeft">◀</div>
+  <div class="touch-btn" id="btnRight">▶</div>
+  <div class="touch-btn" id="btnJump">跳</div>
+</div>
+
+<button id="shareBtn">🔗 分享好友</button>
+<div id="toast"></div>
+
+<div id="rotatePrompt">
+  <div class="icon">📱</div>
+  <p style="font-size:22px;margin-bottom:8px;">请横屏游玩</p>
+  <p style="color:#aaa;">旋转你的设备以获得最佳体验</p>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// ====== 常量 ======
+const TILE = 40;
+const GRAVITY = 0.6;
+const FRICTION = 0.82;
+const MAX_FALL = 14;
+const SCREEN_W = 800;
+const SCREEN_H = 600;
+const WORLD_W = 3200;
+const WORLD_H = 600;
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+// ====== 输入 ======
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  keys[e.key] = true;
+  if (e.key === ' ') e.preventDefault();
+});
+window.addEventListener('keyup', e => {
+  keys[e.key.toLowerCase()] = false;
+  keys[e.key] = false;
+});
+
+// ====== 触摸输入 ======
+function setupTouchControls() {
+  function bind(elId, keyName) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const press = e => { e.preventDefault(); keys[keyName] = true; initAudio(); };
+    const release = e => { e.preventDefault(); keys[keyName] = false; };
+    el.addEventListener('touchstart', press, { passive: false });
+    el.addEventListener('touchend',   release, { passive: false });
+    el.addEventListener('touchcancel', release, { passive: false });
+    el.addEventListener('mousedown', press);
+    el.addEventListener('mouseup', release);
+    el.addEventListener('mouseleave', release);
+  }
+  bind('btnLeft', 'arrowleft');
+  bind('btnRight', 'arrowright');
+  bind('btnJump', ' ');
+}
+setupTouchControls();
+
+// ====== 触摸设备检测 ======
+const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+if (isTouch) {
+  document.getElementById('touchControls').style.display = 'block';
+  document.getElementById('shareBtn').style.display = 'block';
+}
+
+// ====== 画布自适应缩放 ======
+function resizeCanvas() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const scale = Math.min(w / SCREEN_W, h / SCREEN_H);
+  const dw = Math.floor(SCREEN_W * scale);
+  const dh = Math.floor(SCREEN_H * scale);
+  canvas.style.width  = dw + 'px';
+  canvas.style.height = dh + 'px';
+  const container = document.getElementById('gameContainer');
+  container.style.width  = dw + 'px';
+  container.style.height = dh + 'px';
+}
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 100));
+resizeCanvas();
+
+// ====== 横竖屏检测 ======
+function checkOrientation() {
+  const el = document.getElementById('rotatePrompt');
+  // 不强制横屏，竖屏也能玩，只是显示一个轻提示
+  el.style.display = 'none';
+}
+window.addEventListener('resize', checkOrientation);
+window.addEventListener('orientationchange', () => setTimeout(checkOrientation, 100));
+checkOrientation();
+
+// ====== 分享功能 ======
+function shareGame() {
+  const url = window.location.href;
+  const data = {
+    title: '像素冒险 - Pixel Adventure',
+    text: '来玩这个超好玩的像素冒险游戏！🪙🎮',
+    url: url
+  };
+  if (navigator.share) {
+    navigator.share(data).catch(() => copyLink(url));
+  } else {
+    copyLink(url);
+  }
+}
+function copyLink(url) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(
+      () => showToast('✅ 链接已复制！\n去微信粘贴发给好友吧~'),
+      () => showToast('📋 请手动复制链接：\n' + url)
+    );
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+    showToast('✅ 链接已复制！\n去微信粘贴发给好友吧~');
+  }
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.whiteSpace = 'pre-line';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+document.getElementById('shareBtn').addEventListener('click', shareGame);
+
+// ====== 像素绘制工具 ======
+function pixelRect(x, y, w, h, color) {
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.round(x), Math.round(y), Math.ceil(w), Math.ceil(h));
+}
+
+// ====== 音效（Web Audio API 合成） ======
+let audioCtx = null;
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+function playSound(freq, duration, type='square', vol=0.1) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(freq * 0.5, 1), audioCtx.currentTime + duration);
+  gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+function sfx(name) {
+  switch(name) {
+    case 'jump':   playSound(520, 0.12, 'square', 0.08); break;
+    case 'coin':   playSound(880, 0.08, 'square', 0.08); setTimeout(()=>playSound(1320,0.1,'square',0.08),60); break;
+    case 'stomp':  playSound(180, 0.15, 'square', 0.1); break;
+    case 'hurt':   playSound(150, 0.4, 'sawtooth', 0.12); break;
+    case 'win':    [523,659,784,1047].forEach((f,i)=>setTimeout(()=>playSound(f,0.18,'square',0.1),i*120)); break;
+    case 'die':    [400,300,200,100].forEach((f,i)=>setTimeout(()=>playSound(f,0.2,'sawtooth',0.1),i*150)); break;
+  }
+}
+
+// ====== 关卡数据 ======
+// '#' = 地面/砖块, 'C' = 金币, 'E' = 敌人, 'P' = 玩家起点, 'F' = 终点旗杆, '=' = 浮空平台
+const LEVEL_MAP = [
+  "................................................................................",
+  "................................................................................",
+  "................................................................................",
+  "....................C...C.......................................................",
+  "...................=====................C.C.C..................................",
+  "..........C...........................................................C.C.C.....",
+  "......=====......E.........C..............=====..........................F....",
+  ".....#..#........##..............E..............................========.......",
+  "..C..#..#..C....E............E.##..#.....C....E.E..........C.C...E..............F",
+  "####.#..#.####...=====...C.E....#..#...####...##.....=====....E...C..C..C......F",
+  "####.#..#.####...##...####..C....#..#...####.......####..E....##...####...##..#F",
+  "####.#..#.####...##............####....####........##........##...####...##..#F",
+  "####.#..#.####...####.####.####.####...####...####..####.####.##...####...##..#F",
+  "####.#..#.####...####.####.####.####...####...####..####.####.##...####...##..#F",
+  "####.#..#.####...####.####.####.####...####...####..####.####.##...####...##..#F",
+  "####.#..#.####...####.####.####.####...####...####..####.####.##...####...##..#F",
+  "####.#..#.####...####.####.####.####...####...####..####.####.##...####...##..#F",
+  "####.#..#.####...####.####.####.####...####...####..####.####.##...####...##..#F",
+  "####.#..#.####...####.####.####.####...####...####..####.####.##...####...##..#F",
+];
+
+const LEVEL = LEVEL_MAP.map(r => r.replace(/\./g, '.').split(''));
+
+// 解析关卡
+const solidTiles = []; // {x, y, w, h}
+const coins = [];
+const enemies = [];
+let playerStart = { x: 80, y: 200 };
+let flag = null;
+let endX = WORLD_W;
+
+function parseLevel() {
+  const ts = TILE;
+  solidTiles.length = 0;
+  coins.length = 0;
+  enemies.length = 0;
+  const map = LEVEL_MAP;
+  const rowH = WORLD_H / map.length;
+
+  for (let r = 0; r < map.length; r++) {
+    for (let c = 0; c < map[r].length; c++) {
+      const ch = map[r][c];
+      const x = c * ts;
+      const y = r * rowH;
+      switch (ch) {
+        case '#':
+          solidTiles.push({ x, y, w: ts, h: rowH });
+          break;
+        case '=':
+          solidTiles.push({ x, y, w: ts, h: rowH * 0.4 });
+          break;
+        case 'C':
+          coins.push({ x: x + ts/2, y: y + rowH/2, collected: false, anim: Math.random()*Math.PI*2 });
+          break;
+        case 'E':
+          enemies.push({ x: x, y: y + rowH - 30, w: 28, h: 28, vx: 1.2, dir: 1, alive: true, type: 'goomba' });
+          break;
+        case 'F':
+          if (!flag) {
+            flag = { x: x, y: 0, w: 8, h: WORLD_H };
+            endX = x;
+          }
+          break;
+      }
+    }
+  }
+  // 计算世界宽度
+  // worldW already set
+}
+parseLevel();
+
+// ====== 玩家 ======
+const player = {
+  x: 80, y: 200,
+  w: 26, h: 34,
+  vx: 0, vy: 0,
+  speed: 3.8,
+  jumpPower: 12,
+  onGround: false,
+  jumpsLeft: 2,
+  facing: 1,
+  animFrame: 0,
+  animTimer: 0,
+  invincible: 0,
+  alive: true,
+  deathTimer: 0,
+};
+
+// ====== 游戏状态 ======
+let gameState = 'menu'; // menu, playing, win, dead, gameover
+let score = 0;
+let lives = 3;
+let coinsCollected = 0;
+let cameraX = 0;
+let particles = [];
+let frameCount = 0;
+
+// ====== 粒子系统 ======
+function spawnParticles(x, y, color, count=8) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 4,
+      vy: (Math.random() - 0.5) * 4 - 2,
+      life: 1,
+      color,
+      size: 2 + Math.random() * 3,
+    });
+  }
+}
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.2;
+    p.life -= 0.03;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+function drawParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha = p.life;
+    pixelRect(p.x - cameraX, p.y, p.size, p.size, p.color);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ====== 碰撞检测 ======
+function checkSolidCollision(obj) {
+  for (const t of solidTiles) {
+    if (obj.x < t.x + t.w && obj.x + obj.w > t.x &&
+        obj.y < t.y + t.h && obj.y + obj.h > t.y) {
+      return t;
+    }
+  }
+  return null;
+}
+
+function resolveCollisions(obj) {
+  // 水平
+  obj.x += obj.vx;
+  let hit = checkSolidCollision(obj);
+  if (hit) {
+    if (obj.vx > 0) obj.x = hit.x - obj.w;
+    else obj.x = hit.x + hit.w;
+    obj.vx = obj.vx > 0 ? 0 : 0; // stop
+    // 敌人撞墙转向
+    if (obj !== player && obj.dir !== undefined) {
+      obj.dir *= -1;
+      obj.vx = Math.abs(obj.vx) * obj.dir;
+    }
+  }
+
+  // 垂直
+  obj.vy = Math.min(obj.vy + GRAVITY, MAX_FALL);
+  obj.y += obj.vy;
+  obj.onGround = false;
+  hit = checkSolidCollision(obj);
+  if (hit) {
+    if (obj.vy > 0) {
+      obj.y = hit.y - obj.h;
+      obj.onGround = true;
+      if (obj === player) player.jumpsLeft = 2;
+    } else {
+      obj.y = hit.y + hit.h;
+    }
+    obj.vy = 0;
+  }
+}
+
+// ====== 玩家更新 ======
+function updatePlayer() {
+  if (!player.alive) {
+    player.deathTimer++;
+    if (player.deathTimer > 60) {
+      lives--;
+      document.getElementById('lives').textContent = lives;
+      if (lives <= 0) {
+        gameState = 'gameover';
+        showOverlay('游戏结束', '得分: ' + score + ' | 金币: ' + coinsCollected, '按任意键重新开始');
+      } else {
+        respawnPlayer();
+      }
+    }
+    return;
+  }
+
+  // 输入
+  let moving = false;
+  if (keys['arrowleft'] || keys['a']) {
+    player.vx = -player.speed;
+    player.facing = -1;
+    moving = true;
+  } else if (keys['arrowright'] || keys['d']) {
+    player.vx = player.speed;
+    player.facing = 1;
+    moving = true;
+  } else {
+    player.vx *= FRICTION;
+    if (Math.abs(player.vx) < 0.1) player.vx = 0;
+  }
+
+  // 跳跃（二段跳，仅在按下瞬间触发）
+  const jumpHeld = keys['arrowup'] || keys['w'] || keys[' '] || keys['space'];
+  if (jumpHeld && !player.jumpPressed && player.jumpsLeft > 0) {
+    player.vy = -player.jumpPower;
+    player.jumpsLeft--;
+    player.onGround = false;
+    sfx('jump');
+  }
+  player.jumpPressed = jumpHeld;
+
+  // 碰撞
+  resolveCollisions(player);
+
+  // 边界
+  if (player.x < 0) player.x = 0;
+  if (player.x + player.w > WORLD_W) player.x = WORLD_W - player.w;
+
+  // 掉出地图
+  if (player.y > SCREEN_H + 100) {
+    killPlayer();
+  }
+
+  // 动画
+  player.animTimer++;
+  if (player.animTimer > (moving ? 6 : 10)) {
+    player.animTimer = 0;
+    player.animFrame = (player.animFrame + 1) % 4;
+  }
+
+  // 无敌时间
+  if (player.invincible > 0) player.invincible--;
+
+  // 收集金币
+  for (const coin of coins) {
+    if (coin.collected) continue;
+    const dx = (player.x + player.w/2) - coin.x;
+    const dy = (player.y + player.h/2) - coin.y;
+    if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
+      coin.collected = true;
+      coinsCollected++;
+      score += 100;
+      document.getElementById('coinCount').textContent = coinsCollected;
+      document.getElementById('score').textContent = score;
+      sfx('coin');
+      spawnParticles(coin.x, coin.y, '#FFD700', 6);
+    }
+  }
+
+  // 敌人碰撞
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    if (player.x < e.x + e.w && player.x + player.w > e.x &&
+        player.y < e.y + e.h && player.y + player.h > e.y) {
+      // 从上方踩
+      if (player.vy > 2 && player.y + player.h - e.y < 20) {
+        e.alive = false;
+        player.vy = -player.jumpPower * 0.6;
+        score += 200;
+        document.getElementById('score').textContent = score;
+        sfx('stomp');
+        spawnParticles(e.x + e.w/2, e.y + e.h/2, '#8B4513', 10);
+      } else if (player.invincible <= 0) {
+        // 受伤
+        hurtPlayer();
+      }
+    }
+  }
+
+  // 到达终点
+  if (flag && player.x + player.w >= flag.x) {
+    gameState = 'win';
+    score += lives * 500;
+    document.getElementById('score').textContent = score;
+    sfx('win');
+    showOverlay('🎉 你赢了！', '得分: ' + score + ' | 金币: ' + coinsCollected + ' | 生命: ' + lives, '按任意键重新开始');
+  }
+}
+
+function hurtPlayer() {
+  if (player.invincible > 0) return;
+  sfx('hurt');
+  player.invincible = 90;
+  player.vy = -8;
+  player.vx = -player.facing * 5;
+  spawnParticles(player.x + player.w/2, player.y + player.h/2, '#FF0000', 8);
+  lives--;
+  document.getElementById('lives').textContent = lives;
+  if (lives <= 0) {
+    killPlayer();
+  }
+}
+
+function killPlayer() {
+  player.alive = false;
+  player.deathTimer = 0;
+  player.vy = -10;
+  sfx('die');
+}
+
+function respawnPlayer() {
+  player.x = 80;
+  player.y = 200;
+  player.vx = 0;
+  player.vy = 0;
+  player.alive = true;
+  player.invincible = 60;
+  player.jumpsLeft = 2;
+  player.deathTimer = 0;
+}
+
+// ====== 敌人更新 ======
+function updateEnemies() {
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    e.vx = 1.2 * e.dir;
+    e.x += e.vx;
+    // 边界检查 - 只在玩家附近更新
+    if (Math.abs(e.x - player.x) > 600) continue;
+
+    // 重力
+    e.vy = Math.min((e.vy || 0) + GRAVITY, MAX_FALL);
+    e.y += e.vy;
+
+    // 碰撞
+    let hit = checkSolidCollision(e);
+    if (hit) {
+      if (e.vy > 0) {
+        e.y = hit.y - e.h;
+        e.vy = 0;
+      } else {
+        e.y = hit.y + hit.h;
+        e.vy = 0;
+      }
+    } else {
+      // 前方是否有地面
+      const checkX = e.dir > 0 ? e.x + e.w + 2 : e.x - 2;
+      const checkY = e.y + e.h + 2;
+      const probe = { x: checkX, y: checkY, w: 2, h: 2 };
+      if (!checkSolidCollision(probe)) {
+        e.dir *= -1;
+      }
+    }
+
+    // 撞墙
+    hit = checkSolidCollision(e);
+    if (hit) {
+      e.dir *= -1;
+      if (e.dir > 0) e.x = hit.x + hit.w;
+      else e.x = hit.x - e.w;
+    }
+  }
+}
+
+// ====== 摄像机 ======
+function updateCamera() {
+  const target = player.x - SCREEN_W / 2 + player.w / 2;
+  cameraX += (target - cameraX) * 0.1;
+  if (cameraX < 0) cameraX = 0;
+  if (cameraX > WORLD_W - SCREEN_W) cameraX = WORLD_W - SCREEN_W;
+}
+
+// ====== 绘制函数 ======
+function drawBackground() {
+  // 天空渐变
+  const grad = ctx.createLinearGradient(0, 0, 0, SCREEN_H);
+  grad.addColorStop(0, '#5C94FC');
+  grad.addColorStop(0.6, '#87CEEB');
+  grad.addColorStop(1, '#B0E0E6');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+
+  // 远山（视差）
+  ctx.fillStyle = '#4a6a8a';
+  for (let i = 0; i < 5; i++) {
+    const mx = (i * 300 - cameraX * 0.2) % (WORLD_W);
+    ctx.beginPath();
+    ctx.moveTo(mx, SCREEN_H);
+    ctx.lineTo(mx + 100, 350);
+    ctx.lineTo(mx + 200, SCREEN_H);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // 近山
+  ctx.fillStyle = '#5a7a5a';
+  for (let i = 0; i < 8; i++) {
+    const mx = (i * 200 - cameraX * 0.4) % (WORLD_W);
+    ctx.beginPath();
+    ctx.moveTo(mx, SCREEN_H);
+    ctx.lineTo(mx + 80, 420);
+    ctx.lineTo(mx + 160, SCREEN_H);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // 云朵（视差）
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  for (let i = 0; i < 6; i++) {
+    const cx = (i * 500 - cameraX * 0.15) % (WORLD_W) - 100;
+    const cy = 50 + (i * 37) % 100;
+    drawCloud(cx, cy);
+  }
+}
+
+function drawCloud(x, y) {
+  pixelRect(x, y, 60, 20, 'rgba(255,255,255,0.8)');
+  pixelRect(x + 10, y - 10, 40, 10, 'rgba(255,255,255,0.8)');
+  pixelRect(x + 20, y - 16, 20, 6, 'rgba(255,255,255,0.8)');
+}
+
+function drawTiles() {
+  for (const t of solidTiles) {
+    const sx = t.x - cameraX;
+    if (sx + t.w < 0 || sx > SCREEN_W) continue;
+
+    // 检查是否是平台类型（高度小于TILE的）
+    if (t.h < TILE) {
+      // 浮空平台 - 砖块样式
+      pixelRect(sx, t.y, t.w, t.h, '#C84C0C');
+      pixelRect(sx, t.y, t.w, 4, '#E87C3C');
+      pixelRect(sx, t.y + t.h - 4, t.w, 4, '#8B3200');
+      pixelRect(sx + 2, t.y + 6, 4, 4, '#A0380C');
+      pixelRect(sx + t.w - 8, t.y + 6, 4, 4, '#A0380C');
+    } else {
+      // 地面 - 草地+泥土
+      // 草层
+      pixelRect(sx, t.y, t.w, 8, '#5C9C3C');
+      pixelRect(sx, t.y + 2, t.w, 2, '#7CB85C');
+      pixelRect(sx, t.y + 8, t.w, 4, '#4A7C2C');
+      // 泥土
+      pixelRect(sx, t.y + 12, t.w, t.h - 12, '#8B5A2B');
+      pixelRect(sx, t.y + 12, t.w, 2, '#A06A33');
+      // 泥土纹理
+      pixelRect(sx + 4, t.y + 18, 6, 4, '#7A4A1B');
+      pixelRect(sx + 16, t.y + 26, 6, 4, '#7A4A1B');
+      pixelRect(sx + 28, t.y + 34, 6, 4, '#7A4A1B');
+      pixelRect(sx + 10, t.y + 42, 6, 4, '#7A4A1B');
+    }
+  }
+}
+
+function drawCoins() {
+  for (const coin of coins) {
+    if (coin.collected) continue;
+    const sx = coin.x - cameraX;
+    if (sx < -20 || sx > SCREEN_W + 20) continue;
+    coin.anim += 0.1;
+    const w = Math.abs(Math.cos(coin.anim)) * 12 + 4;
+    const cx = sx;
+    const cy = coin.y + Math.sin(frameCount * 0.05 + coin.anim) * 3;
+    // 金币
+    pixelRect(cx - w/2, cy - 10, w, 20, '#FFD700');
+    pixelRect(cx - w/2, cy - 10, w, 3, '#FFEC8B');
+    pixelRect(cx - w/2, cy + 7, w, 3, '#DAA520');
+    if (w > 6) {
+      pixelRect(cx - 2, cy - 4, 4, 8, '#DAA520');
+    }
+  }
+}
+
+function drawEnemies() {
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const sx = e.x - cameraX;
+    if (sx + e.w < 0 || sx > SCREEN_W) continue;
+
+    const ex = Math.round(sx);
+    const ey = Math.round(e.y);
+    const walkBob = Math.sin(frameCount * 0.15) * 1;
+
+    // 蘑菇怪身体
+    // 头部（棕色蘑菇帽）
+    pixelRect(ex + 2, ey - 2 + walkBob, 24, 10, '#8B4513');
+    pixelRect(ex, ey + 6 + walkBob, 28, 6, '#A0522D');
+    pixelRect(ex + 2, ey - 2 + walkBob, 24, 2, '#C97840');
+    // 帽子斑点
+    pixelRect(ex + 6, ey + walkBob, 4, 4, '#F4A460');
+    pixelRect(ex + 18, ey + walkBob, 4, 4, '#F4A460');
+    // 眼睛
+    pixelRect(ex + 6, ey + 10, 4, 4, '#FFF');
+    pixelRect(ex + 18, ey + 10, 4, 4, '#FFF');
+    pixelRect(ex + 7 + (e.dir > 0 ? 1 : 0), ey + 11, 2, 2, '#000');
+    pixelRect(ex + 19 + (e.dir > 0 ? 1 : 0), ey + 11, 2, 2, '#000');
+    // 脚
+    pixelRect(ex + 2, ey + 22, 8, 6, '#654321');
+    pixelRect(ex + 18, ey + 22, 8, 6, '#654321');
+    const footOffset = Math.floor(frameCount / 8) % 2;
+    pixelRect(ex + 2 + footOffset * 2, ey + 26, 8, 2, '#4A3520');
+    pixelRect(ex + 18 - footOffset * 2, ey + 26, 8, 2, '#4A3520');
+  }
+}
+
+function drawPlayer() {
+  if (!player.alive && player.deathTimer > 0) {
+    // 死亡动画 - 翻转下落
+    const sx = Math.round(player.x - cameraX);
+    const sy = Math.round(player.y);
+    pixelRect(sx, sy, player.w, player.h, '#E04040');
+    pixelRect(sx + 4, sy + 4, 6, 6, '#FFF');
+    pixelRect(sx + 16, sy + 4, 6, 6, '#FFF');
+    pixelRect(sx + 6, sy + 6, 2, 2, '#000');
+    pixelRect(sx + 18, sy + 6, 2, 2, '#000');
+    return;
+  }
+
+  // 闪烁（无敌时）
+  if (player.invincible > 0 && Math.floor(frameCount / 4) % 2 === 0) return;
+
+  const sx = Math.round(player.x - cameraX);
+  const sy = Math.round(player.y);
+  const f = player.facing;
+  const frame = player.animFrame;
+  const moving = Math.abs(player.vx) > 0.5;
+  const jumping = !player.onGround;
+
+  // 名字标签
+  ctx.save();
+  ctx.font = 'bold 12px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#000';
+  ctx.fillStyle = '#FFD700';
+  ctx.strokeText('高祯茹', sx + player.w / 2, sy - 6);
+  ctx.fillText('高祯茹', sx + player.w / 2, sy - 6);
+  ctx.restore();
+
+  // 翻转处理
+  ctx.save();
+  if (f < 0) {
+    ctx.translate(sx + player.w, 0);
+    ctx.scale(-1, 1);
+    ctx.translate(-sx, 0);
+  }
+
+  const px = sx;
+  const py = sy;
+
+  // 帽子（红色）
+  pixelRect(px + 4, py, 18, 4, '#E04040');
+  pixelRect(px + 2, py + 4, 22, 4, '#E04040');
+  pixelRect(px + 8, py - 2, 10, 2, '#E04040');
+  // 帽子檐
+  pixelRect(px, py + 6, 4, 2, '#C02020');
+  // 头发/鬓角
+  pixelRect(px + 20, py + 4, 4, 6, '#8B3A0A');
+
+  // 脸
+  pixelRect(px + 4, py + 8, 20, 10, '#FFCC99');
+  pixelRect(px + 4, py + 8, 20, 2, '#FFB088');
+  // 眼睛
+  pixelRect(px + 8, py + 10, 3, 4, '#FFF');
+  pixelRect(px + 16, py + 10, 3, 4, '#FFF');
+  pixelRect(px + 9, py + 11, 2, 3, '#0000FF');
+  pixelRect(px + 17, py + 11, 2, 3, '#0000FF');
+  pixelRect(px + 9, py + 11, 1, 1, '#FFF');
+  pixelRect(px + 17, py + 11, 1, 1, '#FFF');
+  // 鼻子
+  pixelRect(px + 12, py + 14, 4, 3, '#E09060');
+  // 胡子
+  pixelRect(px + 8, py + 16, 14, 2, '#5C3317');
+  pixelRect(px + 10, py + 18, 10, 1, '#5C3317');
+  // 嘴
+  pixelRect(px + 13, py + 18, 4, 1, '#C04040');
+
+  // 身体（红色衣服 + 蓝色背带）
+  pixelRect(px + 4, py + 20, 18, 8, '#E04040');
+  pixelRect(px + 6, py + 20, 4, 8, '#0000CC');
+  pixelRect(px + 16, py + 20, 4, 8, '#0000CC');
+  // 纽扣
+  pixelRect(px + 7, py + 22, 2, 2, '#FFD700');
+  pixelRect(px + 17, py + 22, 2, 2, '#FFD700');
+
+  // 手臂
+  if (jumping) {
+    pixelRect(px, py + 20, 4, 6, '#FFCC99');
+    pixelRect(px + 22, py + 18, 4, 6, '#FFCC99');
+  } else {
+    pixelRect(px, py + 22, 4, 6, '#FFCC99');
+    pixelRect(px + 22, py + 22, 4, 6, '#FFCC99');
+  }
+
+  // 腿和鞋
+  if (jumping) {
+    pixelRect(px + 6, py + 28, 6, 4, '#0000CC');
+    pixelRect(px + 14, py + 26, 6, 4, '#0000CC');
+    pixelRect(px + 4, py + 30, 8, 4, '#5C3317');
+    pixelRect(px + 14, py + 28, 8, 4, '#5C3317');
+  } else if (moving) {
+    const legOffset = frame % 2 === 0 ? 0 : 2;
+    pixelRect(px + 6, py + 28, 6, 4 + legOffset, '#0000CC');
+    pixelRect(px + 14, py + 28, 6, 4 - legOffset, '#0000CC');
+    pixelRect(px + 4, py + 30 + legOffset, 8, 4, '#5C3317');
+    pixelRect(px + 14, py + 30 - legOffset, 8, 4, '#5C3317');
+  } else {
+    pixelRect(px + 6, py + 28, 6, 4, '#0000CC');
+    pixelRect(px + 14, py + 28, 6, 4, '#0000CC');
+    pixelRect(px + 4, py + 32, 8, 2, '#5C3317');
+    pixelRect(px + 14, py + 32, 8, 2, '#5C3317');
+  }
+
+  ctx.restore();
+}
+
+function drawFlag() {
+  if (!flag) return;
+  const sx = flag.x - cameraX;
+  if (sx < -50 || sx > SCREEN_W + 50) return;
+
+  // 旗杆
+  pixelRect(sx, 100, 4, SCREEN_H - 100, '#CCCCCC');
+  pixelRect(sx, 100, 2, SCREEN_H - 100, '#FFFFFF');
+  // 旗杆顶
+  pixelRect(sx - 2, 96, 8, 8, '#FFD700');
+  pixelRect(sx - 2, 96, 8, 2, '#FFEC8B');
+
+  // 旗帜（飘动）
+  const wave = Math.sin(frameCount * 0.08) * 3;
+  pixelRect(sx + 4, 110 + wave, 30, 20, '#22AA22');
+  pixelRect(sx + 4, 110 + wave, 30, 3, '#33CC33');
+  pixelRect(sx + 30, 110 + wave, 4, 20, '#008800');
+  // 旗帜图案
+  pixelRect(sx + 12, 116 + wave, 8, 8, '#FFFFFF');
+  pixelRect(sx + 14, 118 + wave, 4, 4, '#22AA22');
+}
+
+function drawHUD() {
+  // 已由DOM处理，这里画一些游戏内UI
+  // 暂停提示
+  if (frameCount % 60 < 30 && gameState === 'playing') {
+    // 闪烁提示不需要，HUD已有DOM
+  }
+}
+
+// ====== 游戏主循环 ======
+function gameLoop() {
+  frameCount++;
+
+  if (gameState === 'playing') {
+    updatePlayer();
+    updateEnemies();
+    updateParticles();
+    updateCamera();
+  }
+
+  // 绘制
+  drawBackground();
+  drawTiles();
+  drawCoins();
+  drawEnemies();
+  drawFlag();
+  drawPlayer();
+  drawParticles();
+  drawHUD();
+
+  requestAnimationFrame(gameLoop);
+}
+
+// ====== UI ======
+function showOverlay(title, sub, hint) {
+  const overlay = document.getElementById('overlay');
+  document.getElementById('overlayTitle').textContent = title;
+  document.getElementById('overlaySub').innerHTML = sub + '<br><span style="font-size:18px;color:#ffd700;">' + hint + '</span>';
+  overlay.classList.remove('hidden');
+}
+
+function hideOverlay() {
+  document.getElementById('overlay').classList.add('hidden');
+}
+
+function startGame() {
+  initAudio();
+  // 重置
+  score = 0;
+  lives = 3;
+  coinsCollected = 0;
+  cameraX = 0;
+  particles = [];
+  // 重新解析关卡（重置金币和敌人）
+  flag = null;
+  parseLevel();
+  respawnPlayer();
+  player.invincible = 0;
+
+  document.getElementById('coinCount').textContent = '0';
+  document.getElementById('lives').textContent = '3';
+  document.getElementById('score').textContent = '0';
+
+  gameState = 'playing';
+  hideOverlay();
+}
+
+// 开始游戏（键盘 / 点击 / 触摸）
+window.addEventListener('keydown', e => {
+  if (gameState !== 'playing') startGame();
+});
+const overlayEl = document.getElementById('overlay');
+overlayEl.addEventListener('click', () => {
+  if (gameState !== 'playing') startGame();
+});
+overlayEl.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (gameState !== 'playing') startGame();
+}, { passive: false });
+
+// 启动
+gameLoop();
+
+})();
+</script>
+
+</body>
+</html>
